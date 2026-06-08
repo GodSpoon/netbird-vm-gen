@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# Secrets
+*.env
+.env*
+!/.env.example
+
+# Packer
+packer_cache/
+*.pkrvars.hcl
+
+# Outputs
+output-*/
+*.iso
+*.vhdx
+*.vmx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

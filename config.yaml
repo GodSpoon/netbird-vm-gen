@@ -1,0 +1,21 @@
+# Global defaults for vm-deploy-tool
+---
+netbird:
+  management_url: "https://api.netbird.io"
+
+ninjaone:
+  regions:
+    US:  "app.ninjarmm.com"
+    US2: "us2.ninjarmm.com"
+    EU:  "eu.ninjarmm.com"
+    CA:  "ca.ninjarmm.com"
+    OC:  "oc.ninjarmm.com"
+
+defaults:
+  cpu: 2
+  memory: 4096
+  disk: 50
+  username: admin
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
