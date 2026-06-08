@@ -11,7 +11,7 @@ Technicians run the CLI interactively; automation pipelines can call it non-inte
 ```
 Build (one-time)          Runtime (per VM)
 ┌─────────────┐           ┌─────────────────────────┐
-│   Packer    │ ──►       │  python deploy/vm-deploy.py  │
+│   Packer    │ ──►       │  python deploy/vm_deploy.py  │
 │  ISO ──►    │  Template │        │                │
 │  Template   │           │   ┌────┴────┐           │
 └─────────────┘           │   │ Prompts │           │
@@ -127,7 +127,7 @@ Profile YAML files support `${ENV_VAR}` syntax for secrets so they are not hardc
 Run the wizard and answer the prompts:
 
 ```bash
-python deploy/vm-deploy.py
+python deploy/vm_deploy.py
 ```
 
 The wizard walks through 8 steps:
@@ -150,7 +150,7 @@ Cancel at any prompt with `Ctrl+C`.
 Pass all required values as flags for CI/CD or scripting:
 
 ```bash
-python deploy/vm-deploy.py \
+python deploy/vm_deploy.py \
   --hypervisor vmware \
   --profile examples/client-acme-corp.yaml \
   --vm-name ACME-APP01 \
@@ -234,10 +234,10 @@ Usage:
 
 ```bash
 # Interactive with profile pre-fill
-python deploy/vm-deploy.py --profile examples/client-acme-corp.yaml
+python deploy/vm_deploy.py --profile examples/client-acme-corp.yaml
 
 # Non-interactive with profile + overrides
-python deploy/vm-deploy.py \
+python deploy/vm_deploy.py \
   --profile examples/client-acme-corp.yaml \
   --vm-name ACME-DB01 \
   --hostname acme-db01 \
@@ -275,7 +275,7 @@ The tool uses an `INSTALLERS` registry in `deploy/lib/prompts.py` to know which 
    ```
 
 3. **Wire rendering (if needed):**
-   If the agent requires an API client, add `deploy/lib/datto_client.py` and import it from `deploy/vm-deploy.py`.
+   If the agent requires an API client, add `deploy/lib/datto_client.py` and import it from `deploy/vm_deploy.py`.
 
 4. **Update the autoinstall template (if necessary):**
    `deploy/templates/autoinstall.yaml.j2` loops over scripts dynamically; as long as the new script is emitted into the rendered output, it will run during `late-commands`.
@@ -310,7 +310,7 @@ No other code changes are required. The wizard automatically includes the new pr
 ### General debugging
 
 - Use `--dry-run` to inspect the rendered autoinstall YAML and setup scripts without deploying.
-- Check `deploy/vm-deploy.py` exit codes: `0` = success, `1` = deployment error, `2` = validation error.
+- Check `deploy/vm_deploy.py` exit codes: `0` = success, `1` = deployment error, `2` = validation error.
 - Review PowerCLI/Hyper-V script output in the console; the Python wrappers forward stdout/stderr.
 
 ---
@@ -332,7 +332,7 @@ No other code changes are required. The wizard automatically includes the new pr
 │   └── scripts/
 │       └── provision.sh
 ├── deploy/
-│   ├── vm-deploy.py                # Main CLI entry point
+│   ├── vm_deploy.py                # Main CLI entry point
 │   ├── lib/
 │   │   ├── __init__.py
 │   │   ├── prompts.py              # 8-step interactive wizard

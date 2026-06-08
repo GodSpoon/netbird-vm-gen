@@ -11,7 +11,7 @@
 ### 1.1 Architecture Summary
 The tool is a **two-stage system**:
 - **Stage 1 (Build-Time)**: Packer creates golden Ubuntu 24.04 templates for VMware vSphere and Hyper-V.
-- **Stage 2 (Runtime)**: A Python CLI (`vm-deploy.py`) interactively prompts technicians, fetches the NinjaOne agent via API v2, renders client-specific cloud-init configs, and deploys VMs via PowerCLI/PowerShell.
+- **Stage 2 (Runtime)**: A Python CLI (`vm_deploy.py`) interactively prompts technicians, fetches the NinjaOne agent via API v2, renders client-specific cloud-init configs, and deploys VMs via PowerCLI/PowerShell.
 
 ### 1.2 Component Dependency Graph
 
@@ -32,7 +32,7 @@ Foundation (dirs, requirements, config.yaml)
     │                       └──> hyperv_deployer.py (PS wrapper)
     ├── PowerShell Layer ──┬──> deploy-vmware.ps1
     │                       └──> deploy-hyperv.ps1
-    └── Main Entry Point ──> vm-deploy.py (argparse + orchestration)
+    └── Main Entry Point ──> vm_deploy.py (argparse + orchestration)
 ```
 
 **Key insight**: The three layers — Packer, Templates, Python Lib, PowerShell — are **almost entirely independent** once the Foundation is laid. They can be built in parallel by separate subagents.
@@ -49,7 +49,7 @@ Foundation (dirs, requirements, config.yaml)
 | `ninjaone_client.py` | High | pi/minimax-m2.7-highspeed | OAuth flow, error handling, API abstraction |
 | `netbird_installer.py` | Low-Medium | gemini flash | Thin wrapper around script generation |
 | `vmware_deployer.py` + `hyperv_deployer.py` | Medium | gemini flash | PowerCLI/PS subprocess wrappers |
-| `vm-deploy.py` entry point | High | pi/minimax-m2.7-highspeed | Main orchestration, CLI design, error handling |
+| `vm_deploy.py` entry point | High | pi/minimax-m2.7-highspeed | Main orchestration, CLI design, error handling |
 | README + examples | Low | gemini flash | Documentation, YAML examples |
 
 ---
@@ -104,7 +104,7 @@ Foundation (dirs, requirements, config.yaml)
 
 ### Phase 3: Main Entry Point (Sequential — 1 subagent)
 **Owner**: `pi/minimax-m2.7-highspeed`
-**File**: `deploy/vm-deploy.py`
+**File**: `deploy/vm_deploy.py`
 
 **Instructions**: 
 - `argparse` with both interactive and non-interactive modes.
@@ -138,7 +138,7 @@ Foundation (dirs, requirements, config.yaml)
 ## 3. Parallelization Rules
 
 - **Phase 2** is the widest parallel band. All 6 subagents can run simultaneously because they write to disjoint file sets.
-- **Phase 3** must wait for Phase 2 because `vm-deploy.py` imports from `deploy/lib/`.
+- **Phase 3** must wait for Phase 2 because `vm_deploy.py` imports from `deploy/lib/`.
 - **Phase 4** can start immediately after Phase 2 finishes (README references file names but doesn't import them).
 - **Phase 5** is always last.
 
@@ -199,7 +199,7 @@ vm-deploy-tool/
 │   └── scripts/
 │       └── provision.sh
 ├── deploy/
-│   ├── vm-deploy.py
+│   ├── vm_deploy.py
 │   ├── lib/
 │   │   ├── __init__.py
 │   │   ├── prompts.py
