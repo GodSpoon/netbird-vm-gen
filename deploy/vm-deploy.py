@@ -12,14 +12,21 @@ Orchestrates the full VM-deployment workflow:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Allow imports when script is run directly: python deploy/vm-deploy.py
+_deploy_dir = Path(__file__).parent
+_project_root = _deploy_dir.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import argparse
 import ipaddress
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
-from pathlib import Path
 from typing import Any
 
 import yaml

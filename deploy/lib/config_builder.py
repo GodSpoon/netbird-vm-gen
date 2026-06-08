@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import crypt
 import os
 import secrets
 from pathlib import Path
 
 import jinja2
-
+from passlib.hash import sha512_crypt
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 env = jinja2.Environment(
@@ -27,9 +26,7 @@ def hash_password(plain: str) -> str:
     Returns:
         The hashed password string suitable for /etc/shadow or cloud-init.
     """
-    salt = crypt.mksalt(crypt.METHOD_SHA512)
-    return crypt.crypt(plain, salt)
-
+    return sha512_crypt.hash(plain)
 
 def render_autoinstall(vm_config: dict) -> str:
     """Render the autoinstall.yaml Jinja2 template.
