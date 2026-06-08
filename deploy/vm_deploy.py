@@ -124,6 +124,76 @@ def _validate_positive_int(value: int | None, name: str) -> None:
 # Profile loading
 # ---------------------------------------------------------------------------
 
+import os
+import re
+
+_ENV_VAR_RE = re.compile(r"\$\{(\w+)\}")
+
+
+def _resolve_env_vars(value):
+    """Recursively resolve ${ENV_VAR} placeholders in strings/lists/dicts.
+
+    Missing environment variables are left as-is; they will fail later
+    if the value is actually used.
+    """
+    if isinstance(value, str):
+        def replacer(match):
+            var_name = match.group(1)
+            return os.environ.get(var_name, match.group(0))
+        return _ENV_VAR_RE.sub(replacer, value)
+    if isinstance(value, list):
+        return [_resolve_env_vars(item) for item in value]
+    if isinstance(value, dict):
+        return {k: _resolve_env_vars(v) for k, v in value.items()}
+    return value
+
+
+def _flatten_profile(data: dict) -> dict:
+    """Flatten nested profile YAML into the flat config dict used by the tool."""
+    flat: dict[str, Any] = {}
+
+    # Top-level keys passed through
+    for key in ("client_name", "hypervisor", "vcenter_server", "cluster", "datastore", "network"):
+        if key in data:
+            flat[key] = data[key]
+
+    # NetBird section
+    netbird = data.get("netbird", {})
+    if "setup_key" in netbird:
+        flat["netbird_setup_key"] = netbird["setup_key"]
+    if "management_url" in netbird:
+        flat["netbird_management_url"] = netbird["management_url"]
+
+    # NinjaOne section
+    ninjaone = data.get("ninjaone", {})
+    for src, dst in (
+        ("region", "ninjaone_region"),
+        ("client_id", "ninjaone_client_id"),
+        ("client_secret", "ninjaone_client_secret"),
+        ("organization", "ninjaone_org"),
+        ("location", "ninjaone_location"),
+    ):
+        if src in ninjaone:
+            flat[dst] = ninjaone[src]
+
+    # Defaults section
+    defaults = data.get("defaults", {})
+    if "cpu" in defaults:
+        flat["cpu"] = defaults["cpu"]
+    if "memory" in defaults:
+        flat["ram"] = defaults["memory"]
+    if "disk" in defaults:
+        flat["disk"] = defaults["disk"]
+    if "username" in defaults:
+        flat["username"] = defaults["username"]
+    if "dns" in defaults:
+        flat["dns_servers"] = defaults["dns"]
+    if "domain" in defaults:
+        flat["search_domain"] = defaults["domain"]
+
+    return flat
+
+
 def _load_profile(path: Path) -> dict:
     if not path.exists():
         raise ValueError(f"Profile file not found: {path}")
@@ -131,7 +201,8 @@ def _load_profile(path: Path) -> dict:
         data = yaml.safe_load(fh)
     if not isinstance(data, dict):
         raise ValueError("Profile YAML must be a mapping.")
-    return data
+    data = _resolve_env_vars(data)
+    return _flatten_profile(data)
 
 
 # ---------------------------------------------------------------------------
@@ -358,13 +429,14 @@ def main(argv: list[str] | None = None) -> int:
         if "password_hash" not in vm_config and vm_config.get("password"):
             vm_config["password_hash"] = hash_password(vm_config["password"])
 
-        # ------------------------------------------------------------------
         # NinjaOne
         # ------------------------------------------------------------------
         installer_url = ""
-        if vm_config.get("ninjaone_client_id") and vm_config.get("ninjaone_client_secret"):
+        if not args.dry_run and vm_config.get("ninjaone_client_id") and vm_config.get("ninjaone_client_secret"):
             with console.status("[bold green]Resolving NinjaOne installer…[/bold green]"):
                 installer_url = _resolve_ninjaone_installer(vm_config)
+        elif args.dry_run and vm_config.get("ninjaone_client_id"):
+            console.print("[dim]Dry-run: skipping NinjaOne authentication.[/dim]")
         else:
             if args.verbose:
                 console.print("[dim]NinjaOne credentials not provided; skipping.[/dim]")
