@@ -39,16 +39,21 @@ class NinjaOneClient:
             region: NinjaOne region key. Defaults to 'US'.
 
         Raises:
-            NinjaOneError: If the region is not supported.
+            ValueError: If the region is not supported.
         """
         if region not in self.REGIONS:
-            raise NinjaOneError(f"Unsupported region: {region}")
+            raise ValueError(f"Unsupported region: {region}")
 
         self._client_id = client_id
         self._client_secret = client_secret
         self._region = region
         self._base_url = f"https://{self.REGIONS[region]}"
         self._token: Optional[str] = None
+
+    @property
+    def base_url(self) -> str:
+        """Return the API base URL for the configured region."""
+        return self._base_url
 
     def authenticate(self) -> str:
         """Authenticate with NinjaOne using client credentials.
