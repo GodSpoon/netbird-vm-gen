@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install dependencies
+apt-get install -y ca-certificates curl gnupg
+
+# Add NetBird GPG key
+mkdir -p /usr/share/keyrings
+curl -fsSL https://pkgs.netbird.io/debian/public.key \
+    | gpg --dearmor -o /usr/share/keyrings/netbird-archive-keyring.gpg
+
+# Add NetBird repository
+echo "deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pkgs.netbird.io/debian stable main" \
+    > /etc/apt/sources.list.d/netbird.list
+
+# Install NetBird
+apt-get update
+apt-get install -y netbird
+
+# Enable and start NetBird service
+systemctl enable --now netbird
+
+# Connect to NetBird
+netbird up \
+    --setup-key "{{ netbird_setup_key }}" \
+    --management-url "{{ netbird_management_url | default('https://api.netbird.io') }}" \
+    --hostname "{{ hostname }}"
+
+# Wait for connection and verify status
+sleep 5
+netbird status | grep -q Connected

@@ -1,0 +1,43 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US
+  keyboard:
+    layout: us
+  network:
+    network:
+      version: 2
+      ethernets:
+        all-en:
+          match:
+            name: "en*"
+          dhcp4: true
+        all-eth:
+          match:
+            name: "eth*"
+          dhcp4: true
+  storage:
+    layout:
+      name: lvm
+  identity:
+    hostname: ubuntu-template
+    username: packer
+    password: "$6$oWHPqErY.cjl7jFI$vSf7gTGpV12JgTxZJjamWb8.ZgR9uH9xU/EdS2/d6dkr/1jQ2mR5PWWHK3D2WTZXFCHhcgaGKva282HpD6HZ90"
+  ssh:
+    install-server: true
+    allow-pw: true
+  packages:
+    - open-vm-tools
+    - hyperv-daemons
+    - qemu-guest-agent
+    - curl
+    - wget
+    - ca-certificates
+    - gnupg
+  late-commands:
+    - curtin in-target --target=/target -- apt-get update
+    - curtin in-target --target=/target -- apt-get install -y linux-virtual
+    - curtin in-target --target=/target -- cloud-init clean --logs --seed
+    - curtin in-target --target=/target -- truncate -s 0 /etc/machine-id
+    - curtin in-target --target=/target -- rm -f /var/lib/dbus/machine-id
+  shutdown: poweroff

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Download NinjaOne agent installer
+wget -q -O /tmp/ninjarmm-agent.deb "{{ ninjaone_installer_url }}"
+
+# Install the package
+dpkg -i /tmp/ninjarmm-agent.deb || true
+
+# Fix any missing dependencies
+apt-get install -f -y || true
+
+# Reload systemd and enable/start the agent
+systemctl daemon-reload
+
+# Try common service names
+systemctl enable --now ninjarmm-agent || systemctl enable --now ninjaone-agent || true
+
+# Cleanup installer
+rm -f /tmp/ninjarmm-agent.deb
