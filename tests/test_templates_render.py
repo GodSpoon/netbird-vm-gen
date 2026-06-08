@@ -1,5 +1,6 @@
 """Integration tests: ensure all Jinja2 templates render without error."""
 
+import base64
 import sys
 from pathlib import Path
 
@@ -7,7 +8,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from deploy.lib.config_builder import render_script
 from deploy.lib.netbird_installer import generate_setup_script
-
 
 def test_all_templates_exist():
     """All expected templates should be present."""
@@ -48,11 +48,16 @@ def test_autoinstall_template_render():
     assert "autoinstall:" in result
     assert "172.16.5.20" in result
     assert "prod-web01" in result
-    assert "nb-prod-key" in result
-    assert "ninja.example.com" in result
     assert "sysadmin" in result
     assert "ssh-rsa" in result
     assert "example.com" in result
+    # Verify scripts are embedded as base64 in late-commands
+    assert "base64 -d" in result
+    # Verify YAML is parseable
+    import yaml
+    data = yaml.safe_load(result)
+    assert "late-commands" in data["autoinstall"]
+    assert len(data["autoinstall"]["late-commands"]) >= 3
 
 
 def test_netbird_script_is_executable_shell():

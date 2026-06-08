@@ -7,57 +7,56 @@ autoinstall:
   locale: en_US.UTF-8
   keyboard:
     layout: us
+{% if network.dhcp %}
   network:
-    {%- if network.dhcp %}
-    network:
-      version: 2
-      ethernets:
-        all-eth:
-          match:
-            name: "e*"
-          dhcp4: true
-    {%- else %}
-    network:
-      version: 2
-      ethernets:
-        all-eth:
-          match:
-            name: "e*"
+    version: 2
+    ethernets:
+      all-eth:
+        match:
+          name: "e*"
+        dhcp4: true
+{% else %}
+  network:
+    version: 2
+    ethernets:
+      all-eth:
+        match:
+          name: "e*"
+        addresses:
+          - {{ network.ip_address }}/{{ network.cidr_prefix }}
+        routes:
+          - to: default
+            via: {{ network.gateway }}
+        nameservers:
           addresses:
-            - {{ network.ip_address }}/{{ network.cidr_prefix }}
-          routes:
-            - to: default
-              via: {{ network.gateway }}
-          nameservers:
-            addresses:
-              {%- for dns in network.dns_servers %}
-              - {{ dns }}
-              {%- endfor %}
-            {%- if network.search_domain is defined and network.search_domain %}
-            search:
-              - {{ network.search_domain }}
-            {%- endif %}
-    {%- endif %}
+{% for dns in network.dns_servers %}
+            - {{ dns }}
+{% endfor %}
+{% if network.search_domain is defined and network.search_domain %}
+          search:
+            - {{ network.search_domain }}
+{% endif %}
+{% endif %}
   storage:
     layout:
       name: lvm
-    sizing-policy: all
+      sizing-policy: all
   identity:
     hostname: {{ hostname }}
     username: {{ admin.username }}
-    password: {{ admin.password_hash }}
-    {%- if admin.realname is defined and admin.realname %}
+    password: "{{ admin.password_hash }}"
+{% if admin.realname is defined and admin.realname %}
     realname: {{ admin.realname }}
-    {%- endif %}
+{% endif %}
   ssh:
     install-server: true
     allow-pw: {{ "true" if admin.allow_password else "false" }}
-    {%- if admin.ssh_authorized_keys is defined and admin.ssh_authorized_keys %}
+{% if admin.ssh_authorized_keys is defined and admin.ssh_authorized_keys %}
     authorized-keys:
-      {%- for key in admin.ssh_authorized_keys %}
-      - {{ key }}
-      {%- endfor %}
-    {%- endif %}
+{% for key in admin.ssh_authorized_keys %}
+      - "{{ key }}"
+{% endfor %}
+{% endif %}
   packages:
     - curl
     - wget
@@ -68,12 +67,9 @@ autoinstall:
   user-data:
     disable_root: true
   late-commands:
-    - echo '{{ netbird_script | replace("'", "'\'\''") }}' > /target/opt/00-netbird.sh
-    - chmod +x /target/opt/00-netbird.sh
-    - echo '{{ ninjaone_script | replace("'", "'\'\''") }}' > /target/opt/01-ninjaone.sh
-    - chmod +x /target/opt/01-ninjaone.sh
+    - echo '{{ netbird_script }}' | base64 -d > /target/opt/00-netbird.sh && chmod +x /target/opt/00-netbird.sh
+    - echo '{{ ninjaone_script }}' | base64 -d > /target/opt/01-ninjaone.sh && chmod +x /target/opt/01-ninjaone.sh
     - curtin in-target --target=/target -- /opt/00-netbird.sh
     - curtin in-target --target=/target -- /opt/01-ninjaone.sh
-    - rm -f /target/opt/00-netbird.sh
-    - rm -f /target/opt/01-ninjaone.sh
+    - rm -f /target/opt/00-netbird.sh /target/opt/01-ninjaone.sh
   shutdown: reboot

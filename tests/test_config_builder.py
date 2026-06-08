@@ -1,5 +1,6 @@
 """Unit tests for deploy.lib.config_builder."""
 
+import base64
 import sys
 from pathlib import Path
 
@@ -7,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from deploy.lib.config_builder import hash_password, render_autoinstall, render_script
-
 
 def test_hash_password_returns_sha512_prefix():
     """SHA-512 crypt hashes start with $6$."""
@@ -68,8 +68,8 @@ def test_render_autoinstall_minimal():
     assert "192.168.1.10" in result
     assert "test-vm" in result
     assert "admin" in result
-    assert "echo netbird" in result
-    assert "echo ninjaone" in result
+    assert base64.b64encode(b"#!/bin/bash\necho netbird").decode("ascii") in result
+    assert base64.b64encode(b"#!/bin/bash\necho ninjaone").decode("ascii") in result
 
 
 def test_render_autoinstall_with_ssh_key():

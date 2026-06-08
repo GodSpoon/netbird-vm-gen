@@ -352,13 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             vm_config = _build_config_from_args(args, profile)
 
-        # Ensure IP is split (render_autoinstall also does this, but we keep the
-        # canonical keys here for consistency).
-        ip_cidr = vm_config.get("ip_address", "")
-        if "/" in ip_cidr:
-            ip_address, prefix = ip_cidr.split("/", 1)
-            vm_config["ip_address"] = ip_address
-            vm_config["cidr_prefix"] = prefix
+        # Password hashing
 
         # Hash password if not already hashed
         if "password_hash" not in vm_config and vm_config.get("password"):

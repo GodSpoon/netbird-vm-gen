@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import secrets
 from pathlib import Path
 
 import jinja2
 from passlib.hash import sha512_crypt
+
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 env = jinja2.Environment(
@@ -27,6 +29,7 @@ def hash_password(plain: str) -> str:
         The hashed password string suitable for /etc/shadow or cloud-init.
     """
     return sha512_crypt.hash(plain)
+
 
 def render_autoinstall(vm_config: dict) -> str:
     """Render the autoinstall.yaml Jinja2 template.
@@ -73,8 +76,12 @@ def render_autoinstall(vm_config: dict) -> str:
             "allow_password": True,
             "ssh_authorized_keys": ssh_authorized_keys,
         },
-        "netbird_script": vm_config.get("netbird_script", ""),
-        "ninjaone_script": vm_config.get("ninjaone_script", ""),
+        "netbird_script": base64.b64encode(
+            vm_config.get("netbird_script", "").encode("utf-8")
+        ).decode("ascii"),
+        "ninjaone_script": base64.b64encode(
+            vm_config.get("ninjaone_script", "").encode("utf-8")
+        ).decode("ascii"),
     }
 
     return template.render(context)
