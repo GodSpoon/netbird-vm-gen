@@ -1,0 +1,21 @@
+client_name: techstart
+hypervisor: hyperv
+switch: External
+netbird:
+  setup_key: nb-skey-tech-fake456
+  management_url: https://api.netbird.io:33073
+ninjaone:
+  region: US
+  client_id: ${TECHSTART_NINJA_CLIENT_ID}
+  client_secret: ${TECHSTART_NINJA_CLIENT_SECRET}
+  organization: "TechStart Inc"
+  location: "HQ"
+defaults:
+  cpu: 4
+  memory: 8192
+  disk: 100
+  username: sysadmin
+  dns:
+    - 1.1.1.1
+    - 9.9.9.9
+  domain: techstart.io

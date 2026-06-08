@@ -1,0 +1,24 @@
+client_name: acme-corp
+hypervisor: vmware
+vcenter_server: vc01.acme.local
+cluster: ACME-CL01
+datastore: ACME-DS01
+network: ACME-VLAN10
+netbird:
+  setup_key: nb-skey-acme-fake123
+  management_url: https://api.netbird.io:33073
+ninjaone:
+  region: US
+  client_id: ${ACME_NINJA_CLIENT_ID}
+  client_secret: ${ACME_NINJA_CLIENT_SECRET}
+  organization: "Acme Corporation"
+  location: "Main Office"
+defaults:
+  cpu: 2
+  memory: 4096
+  disk: 50
+  username: admin
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
+  domain: acme.local
