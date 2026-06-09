@@ -286,12 +286,31 @@ def run_wizard(profile: dict | None = None) -> dict:
     # 7. NinjaOne
     # ------------------------------------------------------------------
     console.print(Panel("[bold cyan]Step 7 / 8[/bold cyan] — NinjaOne Agent", expand=False))
-    nj_profile = profile.get("ninjaone", {})
+    console.print("[dim]NinjaOne API Setup:[/dim]")
+    console.print("  1. Go to Administration -> Apps -> API")
+    console.print("  2. Click 'Add client app'")
+    console.print("  3. Grant scopes: Monitoring, Management, Control, Refresh Token")
+    console.print("  4. Copy the Client ID and Client Secret")
+    console.print("  [link=https://4eos.rmmservices.net/#/administration/apps/api]https://4eos.rmmservices.net/#/administration/apps/api[/link]")
+    console.print()
+
+    nj_profile = profile.get("ninjaone", {}) if isinstance(profile, dict) else {}
+    if not isinstance(nj_profile, dict):
+        nj_profile = {}
 
     nj_region = _qtext("Region", nj_profile.get("region", "US")).ask()
     if nj_region is None:
         raise SystemExit("Wizard cancelled.")
     result["ninjaone_region"] = (nj_region or "US").strip()
+
+    nj_base_url = _qtext(
+        "Custom Base URL (optional, e.g. https://4eos.rmmservices.net)",
+        nj_profile.get("base_url", ""),
+    ).ask()
+    if nj_base_url is None:
+        raise SystemExit("Wizard cancelled.")
+    if nj_base_url and nj_base_url.strip():
+        result["ninjaone_base_url"] = nj_base_url.strip()
 
     nj_client_id = _qpassword("NinjaOne API Client ID").ask()
     if nj_client_id is None:
@@ -321,7 +340,7 @@ def run_wizard(profile: dict | None = None) -> dict:
         nj_org = _qtext("Organization").ask()
         if nj_org is None:
             raise SystemExit("Wizard cancelled.")
-    result["ninjaone_organization"] = nj_org.strip()
+    result["ninjaone_org"] = nj_org.strip()
 
     nj_loc = _qtext("Location", nj_profile.get("location", "")).ask()
     if nj_loc is None:
@@ -332,7 +351,6 @@ def run_wizard(profile: dict | None = None) -> dict:
         if nj_loc is None:
             raise SystemExit("Wizard cancelled.")
     result["ninjaone_location"] = nj_loc.strip()
-
     # ------------------------------------------------------------------
     # 8. Review and Deploy
     # ------------------------------------------------------------------
@@ -362,11 +380,12 @@ def run_wizard(profile: dict | None = None) -> dict:
     )
     table.add_row("NetBird Setup Key", "•" * 8)
     table.add_row("NetBird Mgmt URL", result["netbird_management_url"])
-    table.add_row("NinjaOne Region", result["ninjaone_region"])
+    table.add_row("NinjaOne Region", result.get("ninjaone_region", "—"))
+    table.add_row("NinjaOne Base URL", result.get("ninjaone_base_url", "—"))
     table.add_row("NinjaOne Client ID", "•" * 8)
     table.add_row("NinjaOne Client Secret", "•" * 8)
-    table.add_row("NinjaOne Organization", result["ninjaone_organization"])
-    table.add_row("NinjaOne Location", result["ninjaone_location"])
+    table.add_row("NinjaOne Organization", result.get("ninjaone_org", "—"))
+    table.add_row("NinjaOne Location", result.get("ninjaone_location", "—"))
 
     console.print(table)
 

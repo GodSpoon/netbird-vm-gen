@@ -1,4 +1,4 @@
-"""Unit tests for deploy.vm-deploy CLI logic."""
+"""Unit tests for deploy.vm_deploy CLI logic."""
 
 import sys
 from pathlib import Path
@@ -10,6 +10,7 @@ from deploy.vm_deploy import (
     _validate_ip_cidr,
     _validate_positive_int,
     _build_config_from_args,
+    _generate_vm_name,
     EXIT_SUCCESS,
     EXIT_VALIDATION_ERROR,
 )
@@ -60,12 +61,45 @@ def test_validate_positive_int_none():
     _validate_positive_int(None, "CPU")
 
 
+def _make_namespace(**kwargs) -> Namespace:
+    """Build a Namespace with all required fields and overrides."""
+    defaults = {
+        "vm_name": "",
+        "hostname": "",
+        "description": "",
+        "cpu": None,
+        "ram": None,
+        "disk": None,
+        "ip": "",
+        "gateway": "",
+        "dns": None,
+        "username": "",
+        "password": "",
+        "ssh_key": None,
+        "netbird_setup_key": None,
+        "netbird_management_url": None,
+        "ninjaone_region": None,
+        "ninjaone_base_url": None,
+        "ninjaone_client_id": None,
+        "ninjaone_client_secret": None,
+        "ninjaone_org_id": None,
+        "ninjaone_location_id": None,
+        "ninjaone_org_name": None,
+        "ninjaone_location_name": None,
+        "ninjaone_org": None,
+        "ninjaone_location": None,
+        "hypervisor": None,
+        "save_credentials": False,
+    }
+    defaults.update(kwargs)
+    return Namespace(**defaults)
+
+
 def test_build_config_from_args_minimal():
     """Should build config from CLI args."""
-    args = Namespace(
+    args = _make_namespace(
         vm_name="TEST-VM",
         hostname="test-vm",
-        description="",
         cpu=2,
         ram=4096,
         disk=50,
@@ -74,17 +108,10 @@ def test_build_config_from_args_minimal():
         dns="8.8.8.8,1.1.1.1",
         username="admin",
         password="secret",
-        ssh_key=None,
         netbird_setup_key="nb-key",
-        netbird_management_url=None,
-        ninjaone_region=None,
-        ninjaone_client_id=None,
-        ninjaone_client_secret=None,
-        ninjaone_org=None,
-        ninjaone_location=None,
         hypervisor="vmware",
     )
-    cfg = _build_config_from_args(args, None)
+    cfg = _build_config_from_args(args, None, None)
     assert cfg["vm_name"] == "TEST-VM"
     assert cfg["hostname"] == "test-vm"
     assert cfg["CPU"] == 2
@@ -94,30 +121,9 @@ def test_build_config_from_args_minimal():
 
 def test_build_config_missing_required():
     """Missing required fields should raise ValueError."""
-    args = Namespace(
-        vm_name="",
-        hostname="",
-        description="",
-        cpu=None,
-        ram=None,
-        disk=None,
-        ip="",
-        gateway="",
-        dns=None,
-        username="",
-        password="",
-        ssh_key=None,
-        netbird_setup_key=None,
-        netbird_management_url=None,
-        ninjaone_region=None,
-        ninjaone_client_id=None,
-        ninjaone_client_secret=None,
-        ninjaone_org=None,
-        ninjaone_location=None,
-        hypervisor=None,
-    )
+    args = _make_namespace()
     try:
-        _build_config_from_args(args, None)
+        _build_config_from_args(args, None, None)
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "Missing" in str(exc)
@@ -130,29 +136,59 @@ def test_build_config_from_profile():
         "cpu": 4,
         "hypervisor": "hyperv",
     }
-    args = Namespace(
+    args = _make_namespace(
         vm_name="CLI-VM",
         hostname="host",
-        description="",
-        cpu=None,
-        ram=None,
-        disk=None,
         ip="10.0.0.1/24",
         gateway="10.0.0.254",
-        dns=None,
         username="admin",
         password="pass",
-        ssh_key=None,
-        netbird_setup_key=None,
-        netbird_management_url=None,
-        ninjaone_region=None,
-        ninjaone_client_id=None,
-        ninjaone_client_secret=None,
-        ninjaone_org=None,
-        ninjaone_location=None,
-        hypervisor=None,
     )
-    cfg = _build_config_from_args(args, profile)
+    cfg = _build_config_from_args(args, profile, None)
     assert cfg["vm_name"] == "CLI-VM"  # CLI overrides profile
     assert cfg["cpu"] == 4  # Profile default kept
     assert cfg["hypervisor"] == "hyperv"  # Profile default kept
+
+
+def test_generate_vm_name():
+    """Should generate incremented VM names."""
+    assert _generate_vm_name("Acme Corp") == "netbird-acme-corp-01"
+    assert _generate_vm_name("Acme Corp", ["netbird-acme-corp-01"]) == "netbird-acme-corp-02"
+    assert _generate_vm_name("Acme Corp", ["netbird-acme-corp-01", "netbird-acme-corp-03"]) == "netbird-acme-corp-02"
+
+
+def test_generate_vm_name_special_chars():
+    assert _generate_vm_name("Systems Engineering & Sales (SESCO)") == "netbird-systems-engineering-sales-sesco-01"
+
+
+def test_global_config_layer():
+    """Global config should provide defaults overridden by CLI args."""
+    global_cfg = {"username": "globaladmin", "cpu": 8}
+    args = _make_namespace(
+        vm_name="TEST",
+        hostname="test",
+        ip="10.0.0.1/24",
+        gateway="10.0.0.1",
+        username="cliadmin",
+        password="pass",
+        hypervisor="vmware",
+    )
+    cfg = _build_config_from_args(args, None, global_cfg)
+    assert cfg["username"] == "cliadmin"  # CLI overrides global
+    assert cfg["cpu"] == 8  # Global default kept
+
+
+def test_build_config_with_base_url():
+    """Custom base URL should be passed through."""
+    args = _make_namespace(
+        vm_name="TEST",
+        hostname="test",
+        ip="10.0.0.1/24",
+        gateway="10.0.0.1",
+        username="admin",
+        password="pass",
+        hypervisor="vmware",
+        ninjaone_base_url="https://4eos.rmmservices.net",
+    )
+    cfg = _build_config_from_args(args, None, None)
+    assert cfg["ninjaone_base_url"] == "https://4eos.rmmservices.net"

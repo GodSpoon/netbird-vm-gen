@@ -1,21 +1,51 @@
 # Global defaults for vm-deploy-tool
+# Override any value by creating a profile or passing CLI flags.
 ---
+# NetBird VPN defaults
 netbird:
   management_url: "https://api.netbird.io"
 
+# NinjaOne API defaults
 ninjaone:
+  # Standard region hostnames (used when base_url is not set)
   regions:
     US:  "app.ninjarmm.com"
     US2: "us2.ninjarmm.com"
     EU:  "eu.ninjarmm.com"
     CA:  "ca.ninjarmm.com"
     OC:  "oc.ninjarmm.com"
+  # Custom base URL for white-label / MSP tenants.
+  # If set, this overrides the region map entirely.
+  # Example: "https://4eos.rmmservices.net"
+  base_url: ""
+  # Default region when not specified
+  default_region: "US"
 
+# VM naming convention
+naming:
+  # Pattern supports: {company}, {org}, {location}, {index:02d}
+  # {company} comes from profile client_name or NinjaOne org name
+  # {index} auto-increments based on existing VMs
+  pattern: "netbird-{company}-{index:02d}"
+
+# Default hardware and OS settings
 defaults:
   cpu: 2
-  memory: 4096
-  disk: 50
+  memory: 4096          # MB
+  disk: 50               # GB
   username: admin
+  password: ""           # Leave empty to force prompt
   dns:
     - 8.8.8.8
     - 1.1.1.1
+  search_domain: ""
+  ssh_key: ""            # Path to SSH public key file, or raw key string
+
+# NinjaOne API setup instructions (shown in wizard)
+ninjaone_api_help:
+  url: "https://4eos.rmmservices.net/#/administration/apps/api"
+  steps:
+    - "Go to Administration -> Apps -> API"
+    - "Click 'Add client app'"
+    - "Grant scopes: Monitoring, Management, Control, Refresh Token"
+    - "Copy the Client ID and Client Secret"
