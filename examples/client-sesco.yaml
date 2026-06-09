@@ -1,0 +1,40 @@
+# SESCO (Systems Engineering & Sales) client profile
+# Usage:
+#   python deploy/vm_deploy.py --profile examples/client-sesco.yaml \
+#     --vm-name netbird-sesco-01 --hostname netbird-sesco-01 \
+#     --ip 192.168.0.40/24 --password "YOUR_PASSWORD"
+---
+client_name: "SESCO"
+hypervisor: vmware
+
+# VMware infrastructure (update to match your environment)
+vcenter_server: "vcenter.sesco-fw.net"
+cluster: "SESCO-CL01"
+datastore: "SESCO-DS01"
+network: "SESCO-VLAN10"
+
+netbird:
+  setup_key: "24C732F9-A43C-43AB-9ABE-F9E101EF5ABD"
+  management_url: "https://api.netbird.io"
+
+ninjaone:
+  region: "US"
+  # Custom white-label URL — overrides the standard region hostname
+  base_url: "https://4eos.rmmservices.net"
+  # Use environment variables for secrets (set before running):
+  #   $env:NINJA_CLIENT_ID="..."; $env:NINJA_CLIENT_SECRET="..."
+  client_id: "${NINJA_CLIENT_ID}"
+  client_secret: "${NINJA_CLIENT_SECRET}"
+  organization: "Systems Engineering & Sales (SESCO)"
+  location: "Main Office"
+
+defaults:
+  cpu: 2
+  memory: 4096          # MB
+  disk: 50               # GB
+  username: eos
+  dns:
+    - 192.168.0.171
+    - 9.9.9.9
+  domain: SESCO-FW.net
+  ssh_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXWUlo/F++pjdoDmoUdLgCCpbwW9ebMVCWjN0merkJk sam@sam-latitude3550"
