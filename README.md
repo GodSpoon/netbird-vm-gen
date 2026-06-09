@@ -207,7 +207,7 @@ Available flags:
 
 | Flag | Description |
 |------|-------------|
-| `--hypervisor {vmware,hyper-v}` | Target hypervisor |
+| `--hypervisor {vmware,hyperv}` | Target hypervisor |
 | `--profile PATH` | Load defaults from a YAML client profile |
 | `--vm-name NAME` | VM name |
 | `--hostname HOST` | Guest OS hostname |
@@ -219,9 +219,9 @@ Available flags:
 | `--disk GB` | Disk size in gigabytes |
 | `--username USER` | Admin username |
 | `--password PASS` | Admin password |
-| `--ssh-key KEY` | SSH public key string (optional) |
+| `--ssh-key PATH` | Path to SSH public key file (optional) |
 | `--netbird-setup-key KEY` | NetBird setup key |
-| `--netbird-mgmt-url URL` | NetBird management URL (default: `https://api.netbird.io`) |
+| `--netbird-management-url URL` | NetBird management URL (default: `https://api.netbird.io`) |
 | `--ninjaone-base-url URL` | NinjaOne custom portal URL |
 | `--ninjaone-org-id ID` | NinjaOne organization ID |
 | `--ninjaone-location-id ID` | NinjaOne location ID |
@@ -232,8 +232,21 @@ Available flags:
 | `--save-credentials` | Store NinjaOne API creds in OS keyring |
 | `--save-profile PATH` | Save resolved config as a new profile YAML |
 | `--dry-run` | Render configs without deploying |
-
 Values provided via flags override the profile; anything still missing falls back to the interactive prompts.
+
+## Semi-Interactive Mode
+
+You don't have to provide every value on the command line. Pass what you know, and the tool prompts for anything missing:
+
+```bash
+# Profile has IP/gateway; only pass VM name and password
+python deploy/vm_deploy.py \
+  --profile examples/client-sesco.yaml \
+  --vm-name netbird-sesco-01 \
+  --password "YourPassword"
+```
+
+The tool detects missing required fields and prompts for them individually using the same questionary UI as the full wizard. Cancel at any prompt with `Ctrl+C`.
 
 ## Organization & Location Selection
 
@@ -281,6 +294,10 @@ python deploy/vm_deploy.py --profile examples/client-acme-corp.yaml ...
 
 Save recurring client settings in a YAML profile to pre-fill the wizard or non-interactive run. Use `${ENV_VAR}` for secrets.
 
+### Profile structure
+
+Keys can live at the **top level** (infrastructure, per-VM overrides) or inside **`defaults`** (values that apply to every VM unless overridden):
+
 ```yaml
 # examples/client-acme-corp.yaml
 client_name: acme-corp
@@ -306,13 +323,28 @@ defaults:
   memory: 4096
   disk: 50
   username: admin
+  ip_address: 192.168.10.50/24      # can also live at top level
+  gateway: 192.168.10.1             # can also live at top level
   dns:
     - 8.8.8.8
     - 1.1.1.1
   domain: acme.local
 ```
 
-Usage:
+**Top-level keys** (hypervisor-agnostic infrastructure):
+- `client_name`, `hypervisor`
+- VMware: `vcenter_server`, `cluster`, `datastore`, `network`
+- Hyper-V: `hyperv_switch`, `vm_path`
+- Per-VM overrides: `vm_name`, `hostname`, `description`, `ip_address`, `gateway`, `cpu`, `ram`, `disk`, `username`, `password`, `ssh_key`
+
+**`defaults` keys** (applied to every VM unless overridden by CLI flags):
+- `cpu`, `memory` (→ `ram`), `disk`
+- `username`, `password`
+- `ip_address`, `gateway`
+- `dns` (→ `dns_servers`), `domain` (→ `search_domain`)
+- `ssh_key`
+
+### Usage
 
 ```bash
 # Interactive with profile pre-fill
@@ -327,6 +359,7 @@ python deploy/vm_deploy.py \
 ```
 
 Profile keys map to wizard fields; missing fields are still prompted interactively unless all required values are supplied via flags or the profile.
+
 ### Saving a profile from a deployment
 
 After a successful deployment, save the resolved config as a reusable profile:
@@ -336,6 +369,7 @@ python deploy/vm_deploy.py \
   --vm-name ACME-DB01 \
   --save-profile examples/client-acme-corp-updated.yaml
 ```
+
 
 ---
 
@@ -411,8 +445,9 @@ No other code changes are required. The wizard automatically includes the new pr
 ```
 ├── README.md
 ├── requirements.txt
-├── config.yaml                     # Global defaults (ninjaone base_url, default_region, dns, username)
+├── config.yaml                     # Global defaults, naming pattern, NinjaOne API help text
 ├── validate.py                     # Pre-flight validation script
+├── test_loop.py                    # Iterative test runner
 ├── packer/
 │   ├── plugins.pkr.hcl
 │   ├── variables.pkr.hcl
@@ -442,6 +477,7 @@ No other code changes are required. The wizard automatically includes the new pr
 │   └── deploy-hyperv.ps1
 ├── examples/
 │   ├── client-acme-corp.yaml
+│   ├── client-sesco.yaml
 │   └── client-techstart.yaml
 └── tests/
     ├── test_vm_deploy.py

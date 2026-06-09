@@ -325,6 +325,9 @@ def _validate_positive_int(value: int | None, name: str) -> None:
 _ENV_VAR_RE = re.compile(r"\$\{(\w+)\}")
 
 
+_UNRESOLVED_RE = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}")
+
+
 def _resolve_env_vars(value):
     """Recursively resolve ${ENV_VAR} placeholders in strings/lists/dicts.
 
@@ -343,6 +346,30 @@ def _resolve_env_vars(value):
     if isinstance(value, dict):
         return {k: _resolve_env_vars(v) for k, v in value.items()}
     return value
+
+
+def _check_unresolved_placeholders(data: dict, path: str = "") -> list[str]:
+    """Return a list of human-readable messages for unresolved ${VAR} placeholders."""
+    errors: list[str] = []
+    for key, val in data.items():
+        current = f"{path}.{key}" if path else key
+        if isinstance(val, str) and _UNRESOLVED_RE.search(val):
+            errors.append(
+                f"  {current}: unresolved placeholder '{val}' — "
+                f"set the environment variable(s) before running."
+            )
+        elif isinstance(val, dict):
+            errors.extend(_check_unresolved_placeholders(val, current))
+        elif isinstance(val, list):
+            for i, item in enumerate(val):
+                if isinstance(item, str) and _UNRESOLVED_RE.search(item):
+                    errors.append(
+                        f"  {current}[{i}]: unresolved placeholder '{item}' — "
+                        f"set the environment variable before running."
+                    )
+                elif isinstance(item, dict):
+                    errors.extend(_check_unresolved_placeholders(item, f"{current}[{i}]"))
+    return errors
 
 
 def _flatten_profile(data: dict) -> dict:
@@ -423,6 +450,12 @@ def _load_profile(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError("Profile YAML must be a mapping.")
     data = _resolve_env_vars(data)
+    unresolved = _check_unresolved_placeholders(data)
+    if unresolved:
+        raise ValueError(
+            "Profile contains unresolved environment-variable placeholders:\n"
+            + "\n".join(unresolved)
+        )
     return _flatten_profile(data)
 
 
