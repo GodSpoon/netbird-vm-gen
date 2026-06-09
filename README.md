@@ -47,6 +47,7 @@ The template build installs Ubuntu from ISO, applies updates, installs guest age
 | VMware PowerCLI | Required for vSphere deployments (`Install-Module VMware.PowerCLI`) |
 | Hyper-V role | Required for Hyper-V deployments (Windows feature) |
 | NinjaOne API credentials | Client ID + Secret from your NinjaOne tenant |
+| `keyring` Python package | Optional — for secure credential storage (`pip install keyring`) |
 | NetBird setup key | From your NetBird management console |
 | Ubuntu 24.04 Server ISO | Download from [ubuntu.com](https://ubuntu.com/download/server) |
 
@@ -120,6 +121,38 @@ export NETBIRD_SETUP_KEY=nb-skey-xxxxxxxxxxxxxxxx
 
 Profile YAML files support `${ENV_VAR}` syntax for secrets so they are not hardcoded on disk. See the **Client Profiles** section below.
 
+## Config Layering
+
+The tool merges configuration from four sources, with later sources overriding earlier ones:
+
+1. `config.yaml` — Global defaults (username, DNS, NinjaOne region, custom base URL)
+2. Profile YAML — Per-client defaults loaded with `--profile`
+3. Environment variables — `${ENV_VAR}` syntax in profile YAML
+4. CLI flags — Override everything
+
+Edit `config.yaml` to set your organization's static defaults:
+```yaml
+ninjaone:
+  base_url: "https://4eos.rmmservices.net"
+  default_region: "US"
+defaults:
+  username: admin
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
+```
+
+## NinjaOne API Setup
+
+Before you can deploy the NinjaOne agent, you need API credentials:
+
+1. Go to **Administration → Apps → API** in your NinjaOne portal
+2. Click **"Add client app"**
+3. Grant scopes: **Monitoring, Management, Control, Refresh Token**
+4. Copy the **Client ID** and **Client Secret**
+
+Your NinjaOne portal may use a custom URL (e.g. `https://4eos.rmmservices.net`) while still using the US API region. Set it in `config.yaml` or with `--ninjaone-base-url`.
+
 ---
 
 ## Interactive Deployment
@@ -153,7 +186,7 @@ Pass all required values as flags for CI/CD or scripting:
 python deploy/vm_deploy.py \
   --hypervisor vmware \
   --profile examples/client-acme-corp.yaml \
-  --vm-name ACME-APP01 \
+  --vm-name netbird-acme-corp-01 \
   --hostname acme-app01 \
   --ip 192.168.10.50/24 \
   --gateway 192.168.10.1 \
@@ -164,8 +197,10 @@ python deploy/vm_deploy.py \
   --username admin \
   --password "SecurePass123!" \
   --netbird-setup-key "nb-skey-xxxxxxxxxxxxxxxx" \
-  --ninjaone-org "Acme Corporation" \
-  --ninjaone-location "Main Office"
+  --ninjaone-base-url "https://4eos.rmmservices.net" \
+  --ninjaone-org-id 9 \
+  --ninjaone-location-id 9 \
+  --save-credentials
 ```
 
 Available flags:
@@ -187,11 +222,58 @@ Available flags:
 | `--ssh-key KEY` | SSH public key string (optional) |
 | `--netbird-setup-key KEY` | NetBird setup key |
 | `--netbird-mgmt-url URL` | NetBird management URL (default: `https://api.netbird.io`) |
-| `--ninjaone-org ORG` | NinjaOne organization name |
-| `--ninjaone-location LOC` | NinjaOne location name |
+| `--ninjaone-base-url URL` | NinjaOne custom portal URL |
+| `--ninjaone-org-id ID` | NinjaOne organization ID |
+| `--ninjaone-location-id ID` | NinjaOne location ID |
+| `--ninjaone-org-name NAME` | NinjaOne organization name |
+| `--ninjaone-location-name NAME` | NinjaOne location name |
+| `--ninjaone-org ORG` | NinjaOne organization (legacy) |
+| `--ninjaone-location LOC` | NinjaOne location (legacy) |
+| `--save-credentials` | Store NinjaOne API creds in OS keyring |
+| `--save-profile PATH` | Save resolved config as a new profile YAML |
 | `--dry-run` | Render configs without deploying |
 
 Values provided via flags override the profile; anything still missing falls back to the interactive prompts.
+
+## Organization & Location Selection
+
+You can specify NinjaOne org/location by **ID** or **name**:
+
+| Method | Flag | Example |
+|--------|------|---------|
+| Numeric ID | `--ninjaone-org-id` / `--ninjaone-location-id` | `--ninjaone-org-id 9` |
+| Exact name | `--ninjaone-org-name` / `--ninjaone-location-name` | `--ninjaone-org-name "Acme Corp"` |
+| Legacy | `--ninjaone-org` / `--ninjaone-location` | `--ninjaone-org "Acme Corp"` |
+
+If only one org/location exists, it is auto-selected. If multiple exist and none is specified, the tool errors with a list of available choices.
+
+## VM Naming Convention
+
+The default naming pattern is `netbird-{company}-{index:02d}`:
+
+```bash
+netbird-acme-corp-01
+netbird-acme-corp-02
+netbird-techstart-03
+```
+
+The `{company}` token is derived from the profile's `client_name` or the NinjaOne organization name. Special characters and spaces are sanitized. The index auto-increments based on existing VMs.
+
+## Secure Credential Storage
+
+Store NinjaOne API credentials in your OS credential store (Windows Credential Manager, macOS Keychain, or Linux Secret Service):
+
+```bash
+python deploy/vm_deploy.py --save-credentials \
+  --ninjaone-client-id "your-id" \
+  --ninjaone-client-secret "your-secret" \
+  ...
+```
+
+On subsequent runs, credentials are loaded automatically — no need to pass them every time:
+```bash
+python deploy/vm_deploy.py --profile examples/client-acme-corp.yaml ...
+```
 
 ---
 
@@ -245,6 +327,15 @@ python deploy/vm_deploy.py \
 ```
 
 Profile keys map to wizard fields; missing fields are still prompted interactively unless all required values are supplied via flags or the profile.
+### Saving a profile from a deployment
+
+After a successful deployment, save the resolved config as a reusable profile:
+```bash
+python deploy/vm_deploy.py \
+  --profile examples/client-acme-corp.yaml \
+  --vm-name ACME-DB01 \
+  --save-profile examples/client-acme-corp-updated.yaml
+```
 
 ---
 
@@ -320,7 +411,8 @@ No other code changes are required. The wizard automatically includes the new pr
 ```
 ├── README.md
 ├── requirements.txt
-├── config.yaml                     # Global defaults (regions, URLs, hardware defaults)
+├── config.yaml                     # Global defaults (ninjaone base_url, default_region, dns, username)
+├── validate.py                     # Pre-flight validation script
 ├── packer/
 │   ├── plugins.pkr.hcl
 │   ├── variables.pkr.hcl
@@ -337,7 +429,7 @@ No other code changes are required. The wizard automatically includes the new pr
 │   │   ├── __init__.py
 │   │   ├── prompts.py              # 8-step interactive wizard
 │   │   ├── config_builder.py       # Jinja2 renderer + password hashing
-│   │   ├── ninjaone_client.py      # NinjaOne API v2 client (OAuth)
+│   │   ├── ninjaone_client.py      # NinjaOne API v2 client (OAuth + org/location lookup)
 │   │   ├── netbird_installer.py    # NetBird setup script generator
 │   │   ├── vmware_deployer.py      # PowerCLI subprocess wrapper
 │   │   └── hyperv_deployer.py      # Hyper-V PowerShell wrapper
@@ -348,9 +440,15 @@ No other code changes are required. The wizard automatically includes the new pr
 ├── scripts/
 │   ├── deploy-vmware.ps1
 │   └── deploy-hyperv.ps1
-└── examples/
-    ├── client-acme-corp.yaml
-    └── client-techstart.yaml
+├── examples/
+│   ├── client-acme-corp.yaml
+│   └── client-techstart.yaml
+└── tests/
+    ├── test_vm_deploy.py
+    ├── test_config_builder.py
+    ├── test_ninjaone_client.py
+    ├── test_netbird_installer.py
+    └── test_templates_render.py
 ```
 
 ---
