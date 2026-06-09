@@ -5,13 +5,17 @@
 #     --ip 192.168.0.40/24 --password "YOUR_PASSWORD"
 ---
 client_name: "SESCO"
-hypervisor: vmware
+hypervisor: hyperv
 
-# VMware infrastructure (update to match your environment)
-vcenter_server: "vcenter.sesco-fw.net"
-cluster: "SESCO-CL01"
-datastore: "SESCO-DS01"
-network: "SESCO-VLAN10"
+# Infrastructure (fill in whichever hypervisor you use)
+# VMware:
+#   vcenter_server: "vcenter.sesco-fw.net"
+#   cluster: "SESCO-CL01"
+#   datastore: "SESCO-DS01"
+#   network: "SESCO-VLAN10"
+# Hyper-V:
+hyperv_switch: "External"
+vm_path: "C:\\VMs"
 
 netbird:
   setup_key: "24C732F9-A43C-43AB-9ABE-F9E101EF5ABD"
@@ -31,8 +35,10 @@ ninjaone:
 defaults:
   cpu: 2
   memory: 4096          # MB
-  disk: 50               # GB
+  disk: 10               # GB
   username: eos
+  ip_address: 192.168.0.40/24
+  gateway: 192.168.0.254
   dns:
     - 192.168.0.171
     - 9.9.9.9

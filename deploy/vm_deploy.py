@@ -349,13 +349,30 @@ def _flatten_profile(data: dict) -> dict:
     """Flatten nested profile YAML into the flat config dict used by the tool."""
     flat: dict[str, Any] = {}
 
+    # Top-level keys — hypervisor-agnostic infrastructure
     for key in (
         "client_name",
         "hypervisor",
+        # VMware
         "vcenter_server",
         "cluster",
         "datastore",
         "network",
+        # Hyper-V
+        "hyperv_switch",
+        "vm_path",
+        # Per-VM overrides (can live at top-level or in defaults)
+        "vm_name",
+        "hostname",
+        "description",
+        "ip_address",
+        "gateway",
+        "cpu",
+        "ram",
+        "disk",
+        "username",
+        "password",
+        "ssh_key",
     ):
         if key in data:
             flat[key] = data[key]
@@ -369,6 +386,7 @@ def _flatten_profile(data: dict) -> dict:
     ninjaone = data.get("ninjaone", {})
     for src, dst in (
         ("region", "ninjaone_region"),
+        ("base_url", "ninjaone_base_url"),
         ("client_id", "ninjaone_client_id"),
         ("client_secret", "ninjaone_client_secret"),
         ("organization", "ninjaone_org"),
@@ -378,20 +396,21 @@ def _flatten_profile(data: dict) -> dict:
             flat[dst] = ninjaone[src]
 
     defaults = data.get("defaults", {})
-    if "cpu" in defaults:
-        flat["cpu"] = defaults["cpu"]
-    if "memory" in defaults:
-        flat["ram"] = defaults["memory"]
-    if "disk" in defaults:
-        flat["disk"] = defaults["disk"]
-    if "username" in defaults:
-        flat["username"] = defaults["username"]
-    if "dns" in defaults:
-        flat["dns_servers"] = defaults["dns"]
-    if "domain" in defaults:
-        flat["search_domain"] = defaults["domain"]
-    if "ssh_key" in defaults:
-        flat["ssh_key"] = defaults["ssh_key"]
+    # Only copy from defaults if not already set at top-level
+    def _default(key: str, dst: str | None = None) -> None:
+        dst = dst or key
+        if dst not in flat and key in defaults:
+            flat[dst] = defaults[key]
+
+    _default("cpu")
+    _default("memory", "ram")
+    _default("disk")
+    _default("username")
+    _default("ip_address")
+    _default("gateway")
+    _default("dns", "dns_servers")
+    _default("domain", "search_domain")
+    _default("ssh_key")
 
     return flat
 
@@ -466,21 +485,20 @@ def _build_config_from_args(
         if not args.ssh_key.exists():
             raise ValueError(f"SSH key file not found: {args.ssh_key}")
         cfg["ssh_key"] = args.ssh_key.read_text(encoding="utf-8").strip()
-
     required = ["vm_name", "hostname", "ip_address", "gateway", "username", "password"]
     missing = [f for f in required if not cfg.get(f)]
-    if missing:
-        raise ValueError(f"Missing required fields: {', '.join(missing)}")
+    cfg["_missing_fields"] = missing
 
-    _validate_ip_cidr(cfg["ip_address"])
+    # Only validate fields that are already present;
+    # missing ones will be prompted for and validated afterwards.
+    if cfg.get("ip_address"):
+        _validate_ip_cidr(cfg["ip_address"])
     _validate_positive_int(cfg.get("cpu"), "CPU")
     _validate_positive_int(cfg.get("ram"), "RAM")
     _validate_positive_int(cfg.get("disk"), "Disk")
 
     if args.hypervisor:
         cfg["hypervisor"] = args.hypervisor
-    elif not cfg.get("hypervisor"):
-        raise ValueError("--hypervisor is required in non-interactive mode.")
 
     if "cpu" in cfg and "CPU" not in cfg:
         cfg["CPU"] = cfg["cpu"]
@@ -488,6 +506,72 @@ def _build_config_from_args(
         cfg["MemoryMB"] = cfg["ram"]
     if "disk" in cfg and "DiskGB" not in cfg:
         cfg["DiskGB"] = cfg["disk"]
+
+    return cfg
+
+
+# ---------------------------------------------------------------------------
+# Prompt for missing required fields (semi-interactive mode)
+# ---------------------------------------------------------------------------
+
+def _prompt_for_missing(cfg: dict) -> dict:
+    """Prompt user for any missing required fields using questionary.
+
+    Mutates and returns the passed-in dict.
+    """
+    import questionary
+
+    if not cfg.get("vm_name"):
+        val = questionary.text("VM Name:").ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["vm_name"] = val.strip()
+
+    if not cfg.get("hostname"):
+        default = cfg["vm_name"].replace(" ", "-").lower()
+        val = questionary.text("Hostname:", default=default).ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["hostname"] = (val or default).strip()
+
+    if not cfg.get("ip_address"):
+        val = questionary.text(
+            "IP Address with CIDR (e.g. 192.168.1.10/24):",
+            validate=lambda v: True if "/" in v else "CIDR required, e.g. 192.168.1.10/24",
+        ).ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["ip_address"] = val.strip()
+
+    if not cfg.get("gateway"):
+        val = questionary.text("Gateway:").ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["gateway"] = val.strip()
+
+    if not cfg.get("username"):
+        val = questionary.text("Admin Username:", default="admin").ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["username"] = (val or "admin").strip()
+
+    if not cfg.get("password"):
+        val = questionary.password("Admin Password:").ask()
+        if val is None or not val:
+            raise SystemExit("Cancelled.")
+        cfg["password"] = val
+
+    if not cfg.get("hypervisor"):
+        val = questionary.select(
+            "Hypervisor:",
+            choices=[
+                questionary.Choice("VMware Workstation / Fusion", value="vmware"),
+                questionary.Choice("Microsoft Hyper-V", value="hyperv"),
+            ],
+        ).ask()
+        if val is None:
+            raise SystemExit("Cancelled.")
+        cfg["hypervisor"] = val
 
     return cfg
 
@@ -667,7 +751,13 @@ def main(argv: list[str] | None = None) -> int:
             vm_config = run_wizard(profile)
         else:
             vm_config = _build_config_from_args(args, profile, global_cfg)
-
+            # Semi-interactive: prompt for any fields still missing after CLI + profile + global
+            if vm_config.get("_missing_fields"):
+                console.print(
+                    f"[yellow]Missing {len(vm_config['_missing_fields'])} field(s); prompting…[/yellow]"
+                )
+                vm_config = _prompt_for_missing(vm_config)
+                del vm_config["_missing_fields"]
         # Hash password if not already hashed
         if "password_hash" not in vm_config and vm_config.get("password"):
             vm_config["password_hash"] = hash_password(vm_config["password"])

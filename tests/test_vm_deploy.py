@@ -120,14 +120,12 @@ def test_build_config_from_args_minimal():
 
 
 def test_build_config_missing_required():
-    """Missing required fields should raise ValueError."""
+    """Missing required fields should be tracked in _missing_fields."""
     args = _make_namespace()
-    try:
-        _build_config_from_args(args, None, None)
-        assert False, "Expected ValueError"
-    except ValueError as exc:
-        assert "Missing" in str(exc)
-
+    cfg = _build_config_from_args(args, None, None)
+    assert "_missing_fields" in cfg
+    assert len(cfg["_missing_fields"]) > 0
+    assert "vm_name" in cfg["_missing_fields"]
 
 def test_build_config_from_profile():
     """Profile defaults should be overridden by CLI args."""
